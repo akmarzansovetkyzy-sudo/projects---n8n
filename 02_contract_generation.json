@@ -1,0 +1,366 @@
+{
+  "name": "02 - Генерация договора",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "replacements",
+              "type": "object"
+            },
+            {
+              "name": "template_id"
+            },
+            {
+              "name": "copy_name"
+            },
+            {
+              "name": "export_mime_type"
+            },
+            {
+              "name": "output_file_name"
+            },
+            {
+              "name": "chat_id"
+            },
+            {
+              "name": "user_id"
+            },
+            {
+              "name": "contract_number"
+            },
+            {
+              "name": "contract_date"
+            },
+            {
+              "name": "contract_end_date"
+            },
+            {
+              "name": "amount"
+            },
+            {
+              "name": "payment_terms"
+            },
+            {
+              "name": "delivery_term"
+            },
+            {
+              "name": "requisites",
+              "type": "object"
+            },
+            {
+              "name": "session_keys",
+              "type": "array"
+            },
+            {
+              "name": "session_version",
+              "type": "number"
+            }
+          ]
+        }
+      },
+      "id": "a4c71b3f-2699-40a9-8c53-de934017c7f9",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        8320,
+        -592
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const copiedId = $json.id;\n\n// Берём свежие данные договора из guard-узла, который стоит перед копированием шаблона.\nconst original = $('Guard Active Session Input').first().json;\n\nif (!original?.replacements) {\n  throw new Error('Build Google Docs Replacements: нет replacements во входных данных воркфлоу. Проверь, что Execute Workflow в WF1 передаёт поле replacements.');\n}\n\nconst requests = [];\n\nfor (const [key, value] of Object.entries(original.replacements || {})) {\n  requests.push({\n    replaceAllText: {\n      containsText: {\n        text: key,\n        matchCase: true\n      },\n      replaceText: String(value ?? '')\n    }\n  });\n}\n\nif (original.requisites?.director_gender === 'female') {\n  requests.push({\n    replaceAllText: {\n      containsText: {\n        text: 'действующего на основании',\n        matchCase: false\n      },\n      replaceText: 'действующей на основании'\n    }\n  });\n}\n\nif (!requests.length) {\n  throw new Error('Build Google Docs Replacements: requests пустой. В original.replacements нет переменных для замены.');\n}\n\nreturn [{\n  json: {\n    ...original,\n    google_doc_id: copiedId,\n    copy_result: $json,\n    batch_update_body: {\n      requests\n    }\n  }\n}];"
+      },
+      "id": "f9469a4b-424b-42ab-a0ce-a3fc8294a4e1",
+      "name": "Build Google Docs Replacements",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9024,
+        -592
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://docs.googleapis.com/v1/documents/{{$json.google_doc_id}}:batchUpdate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.batch_update_body }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "164228fe-3e06-4e22-be68-2eb441452260",
+      "name": "Google Docs Replace Variables",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        9248,
+        -592
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Google OAuth2 account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/drive/v3/files/{{$('Build Google Docs Replacements').item.json.google_doc_id}}/export?mimeType={{encodeURIComponent($('Build Google Docs Replacements').item.json.export_mime_type)}}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "f7e37993-2671-4f3b-89d6-52a0ad58fe1b",
+      "name": "Google Drive Export DOCX Or PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        9488,
+        -592
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Google OAuth2 account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('Build Google Docs Replacements').item.json;\n\nif (!$binary || !$binary.data) {\n  throw new Error('No binary file found from Google Drive Export');\n}\n\nfunction safeFileName(name) {\n  return String(name || 'contract.pdf')\n    .replace(/[\\\\/:*?\"<>|№]/g, '-')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nconst safeName = safeFileName(original.output_file_name);\n\n$binary.data.fileName = safeName;\n$binary.data.mimeType = original.export_mime_type;\n\nreturn [\n  {\n    json: {\n      ...original,\n      output_file_name: safeName\n    },\n    binary: {\n      data: $binary.data\n    }\n  }\n];"
+      },
+      "id": "41c5eaa9-ecae-41a8-a481-0d0bb98fe528",
+      "name": "Set Output File Name",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9728,
+        -592
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "sendDocument",
+        "chatId": "={{ $json.chat_id }}",
+        "binaryData": true,
+        "additionalFields": {
+          "caption": "={{ $json.warnings && $json.warnings.length ? 'Договор сформирован.\\n\\nПредупреждения по проверке реквизитов/подписей/печатей:\\n- ' + $json.warnings.join('\\n- ') : 'Договор сформирован.' }}"
+        }
+      },
+      "id": "091531f5-9fa8-45f2-a4c0-e0ae5f734b31",
+      "name": "Send Contract To Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        9968,
+        -576
+      ],
+      "webhookId": "3bc28ce3-3e85-4677-81ad-4f41286a424e",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://www.googleapis.com/drive/v3/files/{{$json.template_id || ($json.contract_type === '01' ? $json.template_01_id : $json.template_02_id)}}/copy",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ name: $json.copy_name || ('Договор №' + ($json.contract_number || '')) }) }}",
+        "options": {}
+      },
+      "id": "25060aa2-0560-4e4a-8432-26074c612aa2",
+      "name": "Google Drive Copy Template1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        8832,
+        -592
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Google OAuth2 account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Сессия пользователя хранится в staticData воркфлоу WF1 (там, где Normalize Telegram Input её создал).\n// Этот суб-воркфлоу (WF2) не имеет доступа к staticData WF1, поэтому здесь сессию НЕ чистим.\n// Вместо этого просто прокидываем session_keys дальше — WF1 очистит сессию сам\n// сразу после того, как получит результат от Execute Workflow (см. ноду в WF1).\n\nlet original = {};\ntry {\n  original = $('Set Output File Name').item.json || {};\n} catch (e) {\n  original = {};\n}\n\nconst chatId = String($json.chat_id || original.chat_id || '');\nconst userId = $json.user_id || original.user_id || null;\nconst sessionKeys =\n  ($json.session_keys && $json.session_keys.length)\n    ? $json.session_keys\n    : (original.session_keys && original.session_keys.length)\n      ? original.session_keys\n      : [chatId, userId ? `user:${userId}` : null].filter(Boolean);\n\nreturn [{\n  json: {\n    ...original,\n    ...$json,\n    chat_id: chatId,\n    user_id: userId,\n    session_keys: sessionKeys,\n    session_version: original.session_version || $json.session_version || null,\n    session_cleared: false\n  },\n  binary: $binary\n}];\n"
+      },
+      "id": "dfc06d64-6be6-455b-817d-086884252488",
+      "name": "Подготовить session_keys для очистки",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10208,
+        -576
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "✅ Готово. Сессия очищена.\n\nМожно отправлять следующий договор или новые реквизиты.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "2251cf4f-0286-4825-b115-c5356a743ce1",
+      "name": "Сообщение: можно следующий договор",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        10448,
+        -576
+      ],
+      "webhookId": "c2f985aa-ecdd-4ea9-bbb8-dcaedf441128",
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = { ...$json };\n\nif (!input.chat_id || !input.replacements || !input.template_id || !input.copy_name) {\n  throw new Error(\n    'Guard Active Session Input: нет обязательных данных договора (chat_id/replacements/template_id/copy_name).'\n  );\n}\n\nreturn [{ json: input }];"
+      },
+      "id": "a7b0f9bd-1ad3-4a7d-b2be-17efb2c43565",
+      "name": "Guard Active Session Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5616,
+        -352
+      ]
+    }
+  ],
+  "connections": {
+    "Build Google Docs Replacements": {
+      "main": [
+        [
+          {
+            "node": "Google Docs Replace Variables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Docs Replace Variables": {
+      "main": [
+        [
+          {
+            "node": "Google Drive Export DOCX Or PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive Export DOCX Or PDF": {
+      "main": [
+        [
+          {
+            "node": "Set Output File Name",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Output File Name": {
+      "main": [
+        [
+          {
+            "node": "Send Contract To Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive Copy Template1": {
+      "main": [
+        [
+          {
+            "node": "Build Google Docs Replacements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Contract To Telegram": {
+      "main": [
+        [
+          {
+            "node": "Подготовить session_keys для очистки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Guard Active Session Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подготовить session_keys для очистки": {
+      "main": [
+        [
+          {
+            "node": "Сообщение: можно следующий договор",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guard Active Session Input": {
+      "main": [
+        [
+          {
+            "node": "Google Drive Copy Template1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  }
+}

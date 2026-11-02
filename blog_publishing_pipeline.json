@@ -1,0 +1,1731 @@
+{
+  "name": "step_3-publish-blog.example.com",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 11
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -2480,
+        576
+      ],
+      "id": "3f57ca88-0f74-432e-afa6-23aea764e368",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "image_2",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "dac99b61-5ada-4b49-a169-fd9f7bbf0ab1"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "5f718665-51b2-4987-a740-41aea65e9e0b",
+                    "leftValue": "={{ $json.status }}",
+                    "rightValue": "draft_publish",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -2032,
+        576
+      ],
+      "id": "3ceda8e2-3c4a-4bf4-a7c8-560a2e096fd5",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "maxItems": "=1"
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        -1824,
+        112
+      ],
+      "id": "d215e08d-095e-4593-8d99-cd2b4960ed3f",
+      "name": "html"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.toolThink",
+      "typeVersion": 1.1,
+      "position": [
+        -736,
+        320
+      ],
+      "id": "a001fc3a-3981-430e-babd-1bc3d6049f75",
+      "name": "Think"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=<system_configuration>\n<identity>\n    <role>Strict HTML Tagger</role>\n    <mission>Ты — робот-разметчик. Твоя единственная задача: взять входящий текст и обернуть КАЖДЫЙ его фрагмент в HTML-теги.</mission>\n</identity>\n\n<input_data>\n  <content>{{ $json.content.parts[0].text }}</content>\n</input_data>\n\n<rules>\n1. ПЕРВЫЙ АБЗАЦ — <p class=\"lead\" style=\"font-size: 19px; color: #1e293b; border-left: 4px solid #3b82f6; padding-left: 20px; margin-bottom: 40px; font-style: italic;\">...</p>\n2. Остальные абзацы — <p>...</p>\n3. Заголовки разделов — <h2>...</h2> (без id, их сделает код)\n4. Подзаголовки — <h3>...</h3>\n5. Списки — <ul><li>...</li></ul>\n6. Таблицы — <table>...</table>\n7. Текст **жирный** — <strong>...</strong>\n8. ЗАПРЕЩЕНО использовать слово \"Заключение\"\n9. ЗАПРЕЩЕНО: любая обертка Markdown (```html), div, article или хлебные крошки.\n</rules>\n\n<execution_rules>\n- Выдавай ТОЛЬКО чистый HTML. Никаких пояснений.\n</execution_rules>\n</system_configuration>"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -960,
+        112
+      ],
+      "id": "1c0b1939-db7b-4f73-a9fd-8eb79854aa36",
+      "name": "create HTML",
+      "retryOnFail": false,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Google Gemini account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Получаем данные\nconst item = $input.first().json;\nconst prefix = item.prefix_image_url || \"https://blog.example.com/wp-content/uploads/\";\n\n// 2. Генерация случайных просмотров\n// ЗАКОММЕНТИРОВАНО 2026-09-16: отключили фейковый счётчик прочтений в статьях (не удалено, может понадобиться).\n// const viewsCount = Math.floor(Math.random() * 10000) + 5000;\n// const views = viewsCount.toLocaleString('en-US').replace(/,/g, ' ');\n\n// 3. Форматирование дат\nconst date = new Date();\nconst months = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];\nconst dateFormatted = `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;\nconst dateISO = date.toISOString();\n\n// 4. Функция для сборки URL (берет готовую переменную или делает замену в main_image)\nconst getUrl = (fileName, index) => {\n  if (fileName) return prefix + fileName;\n  // Если переменная пустая, берем main_image и меняем inline1 на inlineN\n  return prefix + item.main_image.replace('inline1', `inline${index}`);\n};\n\n// 5. Возвращаем результат\nreturn [{\n  json: {\n    ...item,\n    // views: views, // ЗАКОММЕНТИРОВАНО 2026-09-16 — фейковый счётчик прочтений отключён\n    date_formatted: dateFormatted,\n    date_iso: dateISO,\n    category_name: item.group_content || \"Общее\",\n    \n    // Сборка финальных URL через префикс\n    image_url_1: prefix + item.main_image,\n    image_url_2: getUrl(item.image_2_name, 2),\n    image_url_3: getUrl(item.image_3_name, 3),\n    image_url_4: getUrl(item.image_4_name, 4),\n    image_url_5: getUrl(item.image_5_name, 5)\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1568,
+        112
+      ],
+      "id": "eee91221-d97c-4a1b-a607-c778174eca39",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=<system_configuration>\n    <identity>\n        <role>Senior VED Strategist & B2B Content Architect (ExampleBlog.ru)</role>\n        <specialization>Внешнеэкономическая деятельность, трансграничное право, фискальное регулирование (НДС 22%), цифровая логистика и комплаенс.</specialization>\n    </identity>\n\n    <mission>\n        Твоя задача — развернуть сырой исходный текст (факты) в глубокий, экспертный B2B-лонгрид объемом СТРОГО 1000–1400 слов. \n        Статья должна транслировать экспертность через разбор сложных регуляторных механизмов, доказывая собственникам бизнеса прямую связь между юридической чистотой ВЭД и финансовой безопасностью активов.\n    </mission>\n\n    <execution_trigger>\n        КРИТИЧЕСКОЕ ПРАВИЛО: Работай в режиме профессионального аналитического бюро. ЗАПРЕЩЕНЫ любые диалоги, приветствия или комментарии. Верни ТОЛЬКО готовый текст статьи в формате Markdown.\n    </execution_trigger>\n\n    <content_expansion_rules>\n        <rule_1_depth_not_water>\n            Не лей воду. Расширяй текст за счет \"мяса\":\n            - Приводи регуляторные обоснования (ссылки на НК РФ, Постановления Правительства, нормы ЕАЭС).\n            - Разбирай физику процессов: как новые правила (НДС 22%, ГИС ЭПД, СПОТ) влияют на математику сделки и сроки прохождения границы.\n            - Детально раскрывай риски: от камеральных проверок до блокировок по 115-ФЗ и административных штрафов за нарушение валютного законодательства.\n        </rule_1_depth_not_water>\n\n        <rule_2_tone_of_voice>\n            - ПОЛНЫЙ ЗАПРЕТ на местоимения «Я» и «Мы». Используй безличный, экспертный тон (например: «анализ показывает», «рекомендуется внедрение», «практика подтверждает»).\n            - Позиция автора — независимый аналитический центр. Текст должен вызывать желание переслать его юристу или финансовому директору с пометкой \"нужно внедрять\".\n            - ЗАПРЕЩЕНО упоминать ИИ, нейросети и автоматизацию, не связанную напрямую с ВЭД (1С, ЭДО, ГИС).\n        </rule_2_tone_of_voice>\n\n        <rule_3_structure>\n            - ЗАПРЕЩЕНО использовать тег H1. Начни сразу с текста — прямого экспертного ответа на главный интент темы.\n            - Используй подзаголовки ## (H2), ### (H3) и #### (H4) для глубокой навигации.\n            - Обязательно вставляй Markdown-таблицы (сравнение ставок, штрафов или регламентов).\n            - Критические нюансы и юридические \"лайфхаки\" оформляй через цитаты (>).\n        </rule_3_structure>\n\n        <rule_4_forbidden>\n            - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО слово \"Заключение\" и фразы: \"в заключение\", \"подводя итоги\", \"в завершение\". \n            - Финальный блок должен называться: \"Экспертный вердикт ExampleBlog\" — пошаговый план действий для бизнеса.\n            - ЗАПРЕЩЕНЫ клише: \"в современном мире\", \"ни для кого не секрет\", \"рассмотрим подробнее\".\n            - ЗАПРЕЩЕНЫ любые прямые продажи и маркетинговые лозунги.\n        </rule_4_forbidden>\n    </content_expansion_rules>\n\n    <execution_rules>\n        <rule>Целевой объем: 1000–1400 слов.</rule>\n        <rule>Язык: Профессиональный русский с использованием ВЭД-терминологии (Инкотермс, ТН ВЭД, ЭТрН).</rule>\n    </execution_rules>\n</system_configuration>\n\n<user_input>\n    {{ $json.draft_content }}\n</user_input>"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -1328,
+        112
+      ],
+      "id": "12de7449-ebfa-4189-96fa-e90f18cc8588",
+      "name": "LongRead",
+      "retryOnFail": false,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Google Gemini account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://blog.example.com/wp-json/wp/v2/posts/{{ $('publish').item.json.wp_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "wordpressApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"excerpt\": \"{{ $('Filter').item.json.excerpt }}\",\n  \"meta\": {\n    \"_yoast_wpseo_title\": \"{{ $('Filter').item.json.title }}\",\n    \"_yoast_wpseo_metadesc\": \"{{ $('Filter').item.json.description }}\",\n    \"_yoast_wpseo_focuskw\": \"{{ $('Filter').item.json.focus_keyword }}\",\n    \"rank_math_title\": \"{{ $('Filter').item.json.title }}\",\n    \"rank_math_description\": \"{{ $('Filter').item.json.description }}\",\n    \"rank_math_focus_keyword\": \"{{ $('Filter').item.json.focus_keyword }}\",\n    \"rank_math_robots\": \"index, follow\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -672,
+        704
+      ],
+      "id": "3198b6ce-1991-44bb-90fb-324ae677bf1b",
+      "name": "Настройка мета-данных для SEO9",
+      "credentials": {
+        "wordpressApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "WordPress account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://blog.example.com/wp-json/wp/v2/posts/{{ $json.wp_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "wordpressApi",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "featured_media",
+              "value": "={{ $json.main_image_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "42e9f030-5205-4540-a4b2-8446f9d69bb3",
+      "name": "Публикация изображения9",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -944,
+        704
+      ],
+      "typeVersion": 4.2,
+      "retryOnFail": true,
+      "credentials": {
+        "wordpressApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "WordPress account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Получаем данные из предыдущей ноды\nconst input = $input.all()[0].json;\nconst fileName = input.main_image || \"\"; // Например: \"belchik-1-inline1.png\"\n\n// 1. Убираем расширение (всё после последней точки)\n// Если точек несколько, берем всё до последней\nconst imageSlug = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;\n\n// 2. Возвращаем результат\nreturn [{\n    json: {\n        ...input, // Пробрасываем старые данные\n        image_slug: imageSlug // Получаем \"belchik-1-inline1\"\n    }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1216,
+        464
+      ],
+      "id": "89581a54-4e70-4cdd-b241-7c1b1723c57a",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c5bb3461-6291-4390-b1d8-11a0058ea331",
+              "leftValue": "={{ $json.main_image_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -1504,
+        592
+      ],
+      "id": "053a0557-a84a-47b0-b78b-89db981ba149",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $('html').item.json.group_content }}",
+                    "rightValue": "Налоговая стратегия и НДС",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "f9d05121-95c4-4fc6-accf-b0a4029482f9"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "bdd5e2f8-bdf1-4a09-af0f-d466b94adfae",
+                    "leftValue": "={{ $('html').item.json.group_content }}",
+                    "rightValue": "Банковское сопровождение и платежи",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "664cb0d1-3c0c-45d6-8439-7ab7e6378ff7",
+                    "leftValue": "={{ $('html').item.json.group_content }}",
+                    "rightValue": "Логистическая оптимизация",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "079b17c5-e555-47b1-97f7-3a2d93766261",
+                    "leftValue": "={{ $('html').item.json.group_content }}",
+                    "rightValue": "Параллельный импорт и Реэкспорт",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "8fdaa6dc-dc45-4448-9f0b-6946cb424263",
+                    "leftValue": "={{ $('html').item.json.group_content }}",
+                    "rightValue": "Риск-менеджмент и комплаенс",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "1caeb533-0dd2-4d7b-a29e-b8153cba1229",
+                    "leftValue": "={{ $('html').item.json.group_content }}",
+                    "rightValue": "Сертификация и регламенты",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "95f26037-e45f-4842-95bb-1a75f1e78449",
+                    "leftValue": "={{ $('html').item.json.group_content }}",
+                    "rightValue": "Система СПОТ и цифровой контроль",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "b455bfd9-a985-45a3-9e8a-04b3b0c7ef1b",
+                    "leftValue": "={{ $('html').item.json.group_content }}",
+                    "rightValue": "Современная логистика и ЭДО",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "bad1031d-0c0c-480e-b749-ea0fee24b8fc",
+                    "leftValue": "={{ $('html').item.json.group_content }}",
+                    "rightValue": "Юридическая архитектура ВЭД",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -176,
+        336
+      ],
+      "id": "aa53f45e-a075-4764-b5b8-de06da9dbd94",
+      "name": "Switch1"
+    },
+    {
+      "parameters": {
+        "authentication": "nocoDbApiToken",
+        "operation": "getAll",
+        "workspaceId": "YOUR_NOCODB_WORKSPACE_ID",
+        "projectId": "YOUR_NOCODB_PROJECT_ID",
+        "table": "YOUR_NOCODB_TABLE_ID",
+        "options": {
+          "where": "(status,isnot,null)"
+        }
+      },
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 3,
+      "position": [
+        -2272,
+        576
+      ],
+      "id": "fc415f4a-2579-4b07-8a82-a913f630b465",
+      "name": "Get many rows",
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "NocoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "title": "={{ $('html').item.json.article_title }}",
+        "additionalFields": {
+          "authorId": 1,
+          "content": "={{ $json.content.parts[0].text }}",
+          "slug": "={{ $('html').item.json.slug }}",
+          "status": "publish",
+          "date": "={{ $now }}",
+          "commentStatus": "closed",
+          "categories": [
+            2
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.wordpress",
+      "typeVersion": 1,
+      "position": [
+        272,
+        -400
+      ],
+      "id": "285736ac-3bdb-45e8-b69c-3085250a6fc2",
+      "name": "Налоговая стратегия и НДС1",
+      "credentials": {
+        "wordpressApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "WordPress account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.item.json;\nlet html = item.content.parts[0].text;\n\n// 1. Убираем markdown и мусор\nhtml = html\n    .replace(/```html|```/g, '')      // Сносим бэктики\n    .replace(/<p>&nbsp;<\\/p>/g, '')   // Убираем пустые строки\n    .trim();\n\nitem.content.parts[0].text = html;\nreturn { json: item };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -624,
+        160
+      ],
+      "id": "65195dea-e557-46a0-add3-0e63d0783640",
+      "name": "Cleaner"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. ПОЛУЧАЕМ ТЕКСТ ОТ GEMINI (локальный вход)\nconst contentItem = $input.item.json;\nconst cleanedHtml = contentItem.content.parts[0].text;\n\n// 2. ПОЛУЧАЕМ МЕТАДАННЫЕ ИЗ НАЧАЛА\nconst metadata = $('Code in JavaScript1').item.json;\nconst prefix = \"https://blog.example.com/wp-content/uploads/\";\n\nconst articleTitle = metadata.article_title || \"Внешнеэкономическая деятельность\";\nconst dateFormatted = metadata.date_formatted || \"16 марта 2026\";\n// ЗАКОММЕНТИРОВАНО 2026-09-16: отключили фейковый счётчик прочтений (не удалено, может понадобиться).\n// const viewsCount = metadata.views || \"5 000\";\nconst category = metadata.group_content || \"ВЭД\";\nconst mainImg = metadata.main_image || \"exampleblog-1-inline1.png\";\nconst rawLinks = metadata.links || \"\"; \nconst focusLink = metadata.focus_link || \"https://example.com\"; // Ссылка для кнопки\n\n// 3. ЛОГИКА ИЗОБРАЖЕНИЙ (inline 2-5)\nconst imageMatch = mainImg.match(/-(\\d+)-/);\nconst imageId = imageMatch ? imageMatch[1] : \"1\";\nconst inlineImages = [];\nfor (let i = 2; i <= 5; i++) {\n    inlineImages.push(`${prefix}exampleblog-${imageId}-inline${i}.png`);\n}\n\n// 4. ТРАНСЛИТЕРАЦИЯ ДЛЯ ID\nconst slugify = (text) => {\n    const r = {'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f','х':'h','ц':'ts','ч':'ch','ш':'sh','щ':'sch','ы':'y','э':'e','ю':'yu','я':'ya'};\n    return text.toString().toLowerCase().trim().split('').map(c => r[c] || (/[a-z0-9]/.test(c) ? c : '-')).join('').replace(/-+/g, '-').replace(/^-+|-+$/g, '');\n};\n\n// 5. ГЕНЕРАЦИЯ TOC И ВСТАВКА КАРТИНОК\nlet imgIndex = 0;\nlet tocItems = [];\nconst processedHtml = cleanedHtml.replace(/<h2[^>]*>(.*?)<\\/h2>/gi, (match, title) => {\n    const cleanTitle = title.replace(/<[^>]+>/g, ''); \n    const id = slugify(cleanTitle) || 'section-' + (imgIndex + 1);\n    tocItems.push({ id, title: cleanTitle });\n    let result = `<h2 id=\"${id}\">${cleanTitle}</h2>`;\n    if (imgIndex < inlineImages.length) {\n        result = `<img src=\"${inlineImages[imgIndex]}\" alt=\"Иллюстрация: ${cleanTitle}\" class=\"gp-ckb-img\" style=\"margin: 30px 0; border-radius: 8px;\">\\n` + result;\n        imgIndex++;\n    }\n    return result;\n});\n\n// 6. СБОРКА БЛОКА \"ЧИТАТЬ ТАКЖЕ\"\nlet relatedSection = \"\";\nif (rawLinks) {\n    try {\n        const linksArray = typeof rawLinks === 'string' ? JSON.parse(rawLinks) : rawLinks;\n        const cards = linksArray.slice(0, 5).map(link => `\n            <div class=\"gp-ckb-related-card\">\n                <div class=\"gp-ckb-related-img\" style=\"background-image:url('${link.image}')\"></div>\n                <div class=\"gp-ckb-related-body\">\n                    <h3><a href=\"${link.link}\" target=\"_blank\">${link.title}</a></h3>\n                    <span class=\"gp-ckb-related-meta\">${link.date || ''} • ${link.time || ''}</span>\n                </div>\n            </div>`).join('');\n        relatedSection = `<div class=\"gp-ckb-related-wrapper\"><h2 class=\"gp-ckb-related-title\">Читайте также</h2><div class=\"gp-ckb-related-grid\">${cards}</div></div>`;\n    } catch (e) { console.error(\"Links parse error\", e); }\n}\n\nconst tocHtml = tocItems.map(i => `<li class=\"toc-h2\"><a href=\"#${i.id}\">${i.title}</a></li>`).join('');\n\n// 7. ФИНАЛЬНЫЙ ШАБЛОН\nconst finalLayout = `\n<script type=\"application/ld+json\">\n{\n  \"@context\": \"https://schema.org\",\n  \"@type\": \"Article\",\n  \"headline\": \"${articleTitle}\",\n  \"image\": \"${prefix + mainImg}\",\n  \"author\": {\"@type\": \"Person\", \"name\": \"Алексей Яценко\"},\n  \"publisher\": {\"@type\": \"Organization\", \"name\": \"Блог компании https://example.com\"},\n  \"datePublished\": \"${metadata.date_iso || new Date().toISOString()}\",\n  \"url\": \"${metadata.url_page || ''}\"\n}\n</script>\n\n<div class=\"gp-ckb-layout\">\n    <article class=\"gp-ckb-article\">\n        <div class=\"gp-ckb-breadcrumbs\" style=\"padding: 15px 0;\">\n            <a href=\"/\" style=\"color: #0066cc; text-decoration: none;\">Главная</a><span style=\"margin: 0 8px;\">|</span>\n            <a href=\"/blog\" style=\"color: #0066cc; text-decoration: none;\">Блог</a><span style=\"margin: 0 8px;\">|</span>\n            <span style=\"color: #333;\">${articleTitle}</span>\n        </div>\n        \n        <div class=\"gp-ckb-hero-v2\" style=\"position: relative;\">\n            <img src=\"${prefix + mainImg}\" alt=\"${articleTitle}\" style=\"width: 100%; height: auto; object-fit: cover;\">\n            <div style=\"position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.2) 60%, transparent 100%); display: flex; flex-direction: column; justify-content: flex-end; padding: 50px 10% 40px;\">\n                <div style=\"background: #3b82f6; color: white; padding: 4px 12px; border-radius: 4px; font-size: 11px; font-weight: 700; width: fit-content; margin-bottom: 20px; text-transform: uppercase;\">${category}</div>\n                <div style=\"color: white; font-size: clamp(24px, 5vw, 42px); font-weight: 800; line-height: 1.1; margin-bottom: 20px; text-shadow: 0 2px 10px rgba(0,0,0,0.3);\">${articleTitle}</div>\n                <div style=\"display: flex; gap: 20px; color: rgba(255,255,255,0.8); font-size: 13px;\">\n                    <span>📅 ${dateFormatted}</span>\n                    <!-- ЗАКОММЕНТИРОВАНО 2026-09-16 — фейковый счётчик прочтений отключён (не удалено, может понадобиться):\n                    <span>👁 \\${viewsCount} прочтений</span>\n                    -->\n                </div>\n            </div>\n        </div>\n\n        <div class=\"gp-ckb-text-container\">\n            ${processedHtml}\n            <div style=\"text-align: center; margin: 50px 0;\">\n                <a href=\"${focusLink}\" target=\"_blank\" class=\"gp-ckb-btn\" style=\"display: inline-flex; align-items: center; justify-content: center; border: none; outline: none; text-decoration: none;\">\n                    <span class=\"gp-ckb-btn-inner\" style=\"color: white; font-weight: 700; padding: 0 40px;\">ПОЛУЧИТЬ КОНСУЛЬТАЦИЮ</span>\n                </a>\n            </div>\n        </div>\n    </article>\n    <aside class=\"gp-ckb-toc\"><div class=\"gp-ckb-toc-inner\"><ul>${tocHtml}</ul></div></aside>\n</div>\n\n${relatedSection}\n\n<script>\ndocument.addEventListener('DOMContentLoaded', function() {\n    var headings = document.querySelectorAll('.gp-ckb-article h2[id]');\n    var tocLinks = document.querySelectorAll('.gp-ckb-toc a');\n    var observer = new IntersectionObserver(function(entries) {\n        entries.forEach(function(entry) {\n            if (entry.isIntersecting) {\n                tocLinks.forEach(function(link) {\n                    link.parentElement.classList.remove('toc-active');\n                    if (link.getAttribute('href') === '#' + entry.target.id) { link.parentElement.classList.add('toc-active'); }\n                });\n            }\n        });\n    }, { rootMargin: '0px 0px -60% 0px' });\n    headings.forEach(function(h) { observer.observe(h); });\n});\n</script>\n`;\n\ncontentItem.content.parts[0].text = finalLayout;\nreturn { json: contentItem };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        336
+      ],
+      "id": "f74c49c2-e921-432e-9df3-bd085aebc227",
+      "name": "Insert"
+    },
+    {
+      "parameters": {
+        "authentication": "nocoDbApiToken",
+        "operation": "update",
+        "workspaceId": "YOUR_NOCODB_WORKSPACE_ID",
+        "projectId": "YOUR_NOCODB_PROJECT_ID",
+        "table": "YOUR_NOCODB_TABLE_ID",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldName": "Id",
+              "fieldValue": "={{ $('html').item.json.Id }}"
+            },
+            {
+              "fieldName": "wp_id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldName": "draft_html",
+              "fieldValue": "={{ $('create HTML').item.json.content.parts[0].text }}"
+            },
+            {
+              "fieldName": "html",
+              "fieldValue": "={{ $('Insert').item.json.content.parts[0].text }}"
+            },
+            {
+              "fieldName": "status",
+              "fieldValue": "draft_publish"
+            },
+            {
+              "fieldName": "tone_and_voice_content"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 3,
+      "position": [
+        496,
+        -400
+      ],
+      "id": "5dea5e93-27b2-4579-b9e8-5a20fa26243f",
+      "name": "Update a row",
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "NocoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        -1760,
+        592
+      ],
+      "id": "01b12008-ce6d-4ce1-92dd-6c1fd0811d2c",
+      "name": "publish"
+    },
+    {
+      "parameters": {
+        "authentication": "nocoDbApiToken",
+        "operation": "update",
+        "workspaceId": "YOUR_NOCODB_WORKSPACE_ID",
+        "projectId": "YOUR_NOCODB_PROJECT_ID",
+        "table": "YOUR_NOCODB_TABLE_ID",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldName": "Id",
+              "fieldValue": "={{ $('publish').item.json.Id }}"
+            },
+            {
+              "fieldName": "status",
+              "fieldValue": "publish"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 3,
+      "position": [
+        -432,
+        704
+      ],
+      "id": "6c2fac6b-2b78-4802-a446-9080b041730f",
+      "name": "Update a row1",
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "NocoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "67152920-5404-4f24-a6da-15e1fb76a982",
+              "leftValue": "={{ $json.title }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "2f41ed39-6c49-476c-9886-e2390f6c0484",
+              "leftValue": "={{ $json.description }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        -1216,
+        704
+      ],
+      "id": "d67adff9-2e7a-4547-a0a4-8df39c6f2051",
+      "name": "Filter"
+    },
+    {
+      "parameters": {
+        "authentication": "nocoDbApiToken",
+        "operation": "update",
+        "workspaceId": "YOUR_NOCODB_WORKSPACE_ID",
+        "projectId": "YOUR_NOCODB_PROJECT_ID",
+        "table": "YOUR_NOCODB_TABLE_ID",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldName": "Id",
+              "fieldValue": "={{ $('html').item.json.Id }}"
+            },
+            {
+              "fieldName": "wp_id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldName": "draft_html",
+              "fieldValue": "={{ $('create HTML').item.json.content.parts[0].text }}"
+            },
+            {
+              "fieldName": "html",
+              "fieldValue": "={{ $('Insert').item.json.content.parts[0].text }}"
+            },
+            {
+              "fieldName": "status",
+              "fieldValue": "draft_publish"
+            },
+            {
+              "fieldName": "tone_and_voice_content"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 3,
+      "position": [
+        496,
+        -224
+      ],
+      "id": "8f602f9a-65f5-45b3-ac2f-5398c95a0e89",
+      "name": "Update a row2",
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "NocoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "title": "={{ $('html').item.json.article_title }}",
+        "additionalFields": {
+          "authorId": 1,
+          "content": "={{ $json.content.parts[0].text }}",
+          "slug": "={{ $('html').item.json.slug }}",
+          "status": "publish",
+          "date": "={{ $now }}",
+          "commentStatus": "closed",
+          "categories": [
+            3
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.wordpress",
+      "typeVersion": 1,
+      "position": [
+        272,
+        -224
+      ],
+      "id": "241ffb53-7a17-456a-ad6c-86d4c2bddec2",
+      "name": "Банковское сопровождение и платежи",
+      "credentials": {
+        "wordpressApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "WordPress account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "nocoDbApiToken",
+        "operation": "update",
+        "workspaceId": "YOUR_NOCODB_WORKSPACE_ID",
+        "projectId": "YOUR_NOCODB_PROJECT_ID",
+        "table": "YOUR_NOCODB_TABLE_ID",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldName": "Id",
+              "fieldValue": "={{ $('html').item.json.Id }}"
+            },
+            {
+              "fieldName": "wp_id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldName": "draft_html",
+              "fieldValue": "={{ $('create HTML').item.json.content.parts[0].text }}"
+            },
+            {
+              "fieldName": "html",
+              "fieldValue": "={{ $('Insert').item.json.content.parts[0].text }}"
+            },
+            {
+              "fieldName": "status",
+              "fieldValue": "draft_publish"
+            },
+            {
+              "fieldName": "tone_and_voice_content"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 3,
+      "position": [
+        512,
+        -32
+      ],
+      "id": "7a3e8ea3-0de4-4240-ac93-27673307a660",
+      "name": "Update a row3",
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "NocoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "title": "={{ $('html').item.json.article_title }}",
+        "additionalFields": {
+          "authorId": 1,
+          "content": "={{ $json.content.parts[0].text }}",
+          "slug": "={{ $('html').item.json.slug }}",
+          "status": "publish",
+          "date": "={{ $now }}",
+          "commentStatus": "closed",
+          "categories": [
+            7
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.wordpress",
+      "typeVersion": 1,
+      "position": [
+        288,
+        -32
+      ],
+      "id": "42009336-00a8-4909-97d9-5493ec22ec5c",
+      "name": "Логистическая оптимизация",
+      "credentials": {
+        "wordpressApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "WordPress account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "nocoDbApiToken",
+        "operation": "update",
+        "workspaceId": "YOUR_NOCODB_WORKSPACE_ID",
+        "projectId": "YOUR_NOCODB_PROJECT_ID",
+        "table": "YOUR_NOCODB_TABLE_ID",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldName": "Id",
+              "fieldValue": "={{ $('html').item.json.Id }}"
+            },
+            {
+              "fieldName": "wp_id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldName": "draft_html",
+              "fieldValue": "={{ $('create HTML').item.json.content.parts[0].text }}"
+            },
+            {
+              "fieldName": "html",
+              "fieldValue": "={{ $('Insert').item.json.content.parts[0].text }}"
+            },
+            {
+              "fieldName": "status",
+              "fieldValue": "draft_publish"
+            },
+            {
+              "fieldName": "tone_and_voice_content"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 3,
+      "position": [
+        512,
+        160
+      ],
+      "id": "290fc54e-daa6-4258-96c6-26de21df2898",
+      "name": "Update a row4",
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "NocoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "title": "={{ $('html').item.json.article_title }}",
+        "additionalFields": {
+          "authorId": 1,
+          "content": "={{ $json.content.parts[0].text }}",
+          "slug": "={{ $('html').item.json.slug }}",
+          "status": "publish",
+          "date": "={{ $now }}",
+          "commentStatus": "closed",
+          "categories": [
+            8
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.wordpress",
+      "typeVersion": 1,
+      "position": [
+        288,
+        160
+      ],
+      "id": "190b487c-9d10-4ad8-9ae4-177ce2c7b9ab",
+      "name": "Параллельный импорт и Реэкспорт",
+      "credentials": {
+        "wordpressApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "WordPress account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "nocoDbApiToken",
+        "operation": "update",
+        "workspaceId": "YOUR_NOCODB_WORKSPACE_ID",
+        "projectId": "YOUR_NOCODB_PROJECT_ID",
+        "table": "YOUR_NOCODB_TABLE_ID",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldName": "Id",
+              "fieldValue": "={{ $('html').item.json.Id }}"
+            },
+            {
+              "fieldName": "wp_id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldName": "draft_html",
+              "fieldValue": "={{ $('create HTML').item.json.content.parts[0].text }}"
+            },
+            {
+              "fieldName": "html",
+              "fieldValue": "={{ $('Insert').item.json.content.parts[0].text }}"
+            },
+            {
+              "fieldName": "status",
+              "fieldValue": "draft_publish"
+            },
+            {
+              "fieldName": "tone_and_voice_content"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 3,
+      "position": [
+        528,
+        352
+      ],
+      "id": "fd8ee44e-59a6-4b74-a110-54147e595725",
+      "name": "Update a row5",
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "NocoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "title": "={{ $('html').item.json.article_title }}",
+        "additionalFields": {
+          "authorId": 1,
+          "content": "={{ $json.content.parts[0].text }}",
+          "slug": "={{ $('html').item.json.slug }}",
+          "status": "publish",
+          "date": "={{ $now }}",
+          "commentStatus": "closed",
+          "categories": [
+            9
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.wordpress",
+      "typeVersion": 1,
+      "position": [
+        304,
+        352
+      ],
+      "id": "c4481fad-2d3e-4b57-8294-01276e8f2a98",
+      "name": "Риск-менеджмент и комплаенс",
+      "credentials": {
+        "wordpressApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "WordPress account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "nocoDbApiToken",
+        "operation": "update",
+        "workspaceId": "YOUR_NOCODB_WORKSPACE_ID",
+        "projectId": "YOUR_NOCODB_PROJECT_ID",
+        "table": "YOUR_NOCODB_TABLE_ID",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldName": "Id",
+              "fieldValue": "={{ $('html').item.json.Id }}"
+            },
+            {
+              "fieldName": "wp_id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldName": "draft_html",
+              "fieldValue": "={{ $('create HTML').item.json.content.parts[0].text }}"
+            },
+            {
+              "fieldName": "html",
+              "fieldValue": "={{ $('Insert').item.json.content.parts[0].text }}"
+            },
+            {
+              "fieldName": "status",
+              "fieldValue": "draft_publish"
+            },
+            {
+              "fieldName": "tone_and_voice_content"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 3,
+      "position": [
+        528,
+        544
+      ],
+      "id": "caacdc84-b9a0-4e81-97f2-035762be02c7",
+      "name": "Update a row6",
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "NocoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "title": "={{ $('html').item.json.article_title }}",
+        "additionalFields": {
+          "authorId": 1,
+          "content": "={{ $json.content.parts[0].text }}",
+          "slug": "={{ $('html').item.json.slug }}",
+          "status": "publish",
+          "date": "={{ $now }}",
+          "commentStatus": "closed",
+          "categories": [
+            4
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.wordpress",
+      "typeVersion": 1,
+      "position": [
+        304,
+        544
+      ],
+      "id": "ac225bdb-a0c4-477f-ad14-5dc6f662ee9a",
+      "name": "Сертификация и регламенты",
+      "credentials": {
+        "wordpressApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "WordPress account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "nocoDbApiToken",
+        "operation": "update",
+        "workspaceId": "YOUR_NOCODB_WORKSPACE_ID",
+        "projectId": "YOUR_NOCODB_PROJECT_ID",
+        "table": "YOUR_NOCODB_TABLE_ID",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldName": "Id",
+              "fieldValue": "={{ $('html').item.json.Id }}"
+            },
+            {
+              "fieldName": "wp_id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldName": "draft_html",
+              "fieldValue": "={{ $('create HTML').item.json.content.parts[0].text }}"
+            },
+            {
+              "fieldName": "html",
+              "fieldValue": "={{ $('Insert').item.json.content.parts[0].text }}"
+            },
+            {
+              "fieldName": "status",
+              "fieldValue": "draft_publish"
+            },
+            {
+              "fieldName": "tone_and_voice_content"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 3,
+      "position": [
+        528,
+        752
+      ],
+      "id": "efe5dffa-77f4-48af-a8ef-18b288c1d564",
+      "name": "Update a row7",
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "NocoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "title": "={{ $('html').item.json.article_title }}",
+        "additionalFields": {
+          "authorId": 1,
+          "content": "={{ $json.content.parts[0].text }}",
+          "slug": "={{ $('html').item.json.slug }}",
+          "status": "publish",
+          "date": "={{ $now }}",
+          "commentStatus": "closed",
+          "categories": [
+            1
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.wordpress",
+      "typeVersion": 1,
+      "position": [
+        304,
+        752
+      ],
+      "id": "24d9dcf9-738a-4b4f-935f-28c2abad7fb6",
+      "name": "Система СПОТ и цифровой контроль",
+      "credentials": {
+        "wordpressApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "WordPress account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "nocoDbApiToken",
+        "operation": "update",
+        "workspaceId": "YOUR_NOCODB_WORKSPACE_ID",
+        "projectId": "YOUR_NOCODB_PROJECT_ID",
+        "table": "YOUR_NOCODB_TABLE_ID",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldName": "Id",
+              "fieldValue": "={{ $('html').item.json.Id }}"
+            },
+            {
+              "fieldName": "wp_id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldName": "draft_html",
+              "fieldValue": "={{ $('create HTML').item.json.content.parts[0].text }}"
+            },
+            {
+              "fieldName": "html",
+              "fieldValue": "={{ $('Insert').item.json.content.parts[0].text }}"
+            },
+            {
+              "fieldName": "status",
+              "fieldValue": "draft_publish"
+            },
+            {
+              "fieldName": "tone_and_voice_content"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 3,
+      "position": [
+        544,
+        976
+      ],
+      "id": "306e6d66-666e-4660-ad8f-82437e7a5bd6",
+      "name": "Update a row8",
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "NocoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "title": "={{ $('html').item.json.article_title }}",
+        "additionalFields": {
+          "authorId": 1,
+          "content": "={{ $json.content.parts[0].text }}",
+          "slug": "={{ $('html').item.json.slug }}",
+          "status": "publish",
+          "date": "={{ $now }}",
+          "commentStatus": "closed",
+          "categories": [
+            5
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.wordpress",
+      "typeVersion": 1,
+      "position": [
+        320,
+        976
+      ],
+      "id": "9f96619c-005d-4285-a937-bb9786aa5b36",
+      "name": "Современная логистика и ЭДО",
+      "credentials": {
+        "wordpressApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "WordPress account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "nocoDbApiToken",
+        "operation": "update",
+        "workspaceId": "YOUR_NOCODB_WORKSPACE_ID",
+        "projectId": "YOUR_NOCODB_PROJECT_ID",
+        "table": "YOUR_NOCODB_TABLE_ID",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldName": "Id",
+              "fieldValue": "={{ $('html').item.json.Id }}"
+            },
+            {
+              "fieldName": "wp_id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldName": "draft_html",
+              "fieldValue": "={{ $('create HTML').item.json.content.parts[0].text }}"
+            },
+            {
+              "fieldName": "html",
+              "fieldValue": "={{ $('Insert').item.json.content.parts[0].text }}"
+            },
+            {
+              "fieldName": "status",
+              "fieldValue": "draft_publish"
+            },
+            {
+              "fieldName": "tone_and_voice_content"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.nocoDb",
+      "typeVersion": 3,
+      "position": [
+        544,
+        1184
+      ],
+      "id": "d9f7b60d-e7f7-4eec-a916-edf620481ffd",
+      "name": "Update a row9",
+      "credentials": {
+        "nocoDbApiToken": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "NocoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "title": "={{ $('html').item.json.article_title }}",
+        "additionalFields": {
+          "authorId": 1,
+          "content": "={{ $json.content.parts[0].text }}",
+          "slug": "={{ $('html').item.json.slug }}",
+          "status": "publish",
+          "date": "={{ $now }}",
+          "commentStatus": "closed",
+          "categories": [
+            6
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.wordpress",
+      "typeVersion": 1,
+      "position": [
+        320,
+        1184
+      ],
+      "id": "546cae8e-da6a-4b98-bba6-514d7faef5c2",
+      "name": "Юридическая архитектура ВЭД",
+      "credentials": {
+        "wordpressApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "WordPress account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get many rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "html",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "html": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Think": {
+      "ai_tool": [
+        [
+          {
+            "node": "create HTML",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "LongRead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LongRead": {
+      "main": [
+        [
+          {
+            "node": "create HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "create HTML": {
+      "main": [
+        [
+          {
+            "node": "Cleaner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Настройка мета-данных для SEO9": {
+      "main": [
+        [
+          {
+            "node": "Update a row1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "Налоговая стратегия и НДС1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Банковское сопровождение и платежи",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Логистическая оптимизация",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Параллельный импорт и Реэкспорт",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Риск-менеджмент и комплаенс",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Сертификация и регламенты",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Система СПОТ и цифровой контроль",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Современная логистика и ЭДО",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Юридическая архитектура ВЭД",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many rows": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cleaner": {
+      "main": [
+        [
+          {
+            "node": "Insert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Налоговая стратегия и НДС1": {
+      "main": [
+        [
+          {
+            "node": "Update a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "publish": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter": {
+      "main": [
+        [
+          {
+            "node": "Публикация изображения9",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Публикация изображения9": {
+      "main": [
+        [
+          {
+            "node": "Настройка мета-данных для SEO9",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Банковское сопровождение и платежи": {
+      "main": [
+        [
+          {
+            "node": "Update a row2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Логистическая оптимизация": {
+      "main": [
+        [
+          {
+            "node": "Update a row3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Параллельный импорт и Реэкспорт": {
+      "main": [
+        [
+          {
+            "node": "Update a row4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Риск-менеджмент и комплаенс": {
+      "main": [
+        [
+          {
+            "node": "Update a row5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Сертификация и регламенты": {
+      "main": [
+        [
+          {
+            "node": "Update a row6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Система СПОТ и цифровой контроль": {
+      "main": [
+        [
+          {
+            "node": "Update a row7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Современная логистика и ЭДО": {
+      "main": [
+        [
+          {
+            "node": "Update a row8",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Юридическая архитектура ВЭД": {
+      "main": [
+        [
+          {
+            "node": "Update a row9",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  }
+}

@@ -1,0 +1,234 @@
+{
+  "name": "03 - Контракт Телеграм бот (Битрикс и Таблица)",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "contract_number"
+            },
+            {
+              "name": "contract_date"
+            },
+            {
+              "name": "contract_end_date"
+            },
+            {
+              "name": "requisites",
+              "type": "object"
+            },
+            {
+              "name": "amount"
+            },
+            {
+              "name": "payment_terms"
+            },
+            {
+              "name": "delivery_term"
+            },
+            {
+              "name": "copy_name"
+            },
+            {
+              "name": "bitrix_assignee_id"
+            },
+            {
+              "name": "bitrix_creator_id"
+            },
+            {
+              "name": "bitrix_assignee_name"
+            },
+            {
+              "name": "bitrix_deadline"
+            },
+            {
+              "name": "chat_id"
+            }
+          ]
+        }
+      },
+      "id": "ae2ea774-923e-4e02-ba20-b44eac26e801",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        784,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Договоры",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Клиент": "={{ $json.requisites?.company_name || '' }}",
+            "Сумма": "={{ $json.amount }}",
+            "Оплата": "={{ $json.payment_terms }}",
+            "Срок действия": "={{ $json.contract_end_date }}",
+            "№": "={{ $json.contract_number }}",
+            "Дата ": "={{ $json.contract_date }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "№",
+              "displayName": "№",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Дата ",
+              "displayName": "Дата ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Клиент",
+              "displayName": "Клиент",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Сумма",
+              "displayName": "Сумма",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Оплата",
+              "displayName": "Оплата",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Срок действия",
+              "displayName": "Срок действия",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "c6534094-c91d-4a07-8694-1e69ccdc67e5",
+      "name": "Записать в Google Таблицу",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1024,
+        176
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR-PORTAL.bitrix24.com/rest/1/YOUR_WEBHOOK_TOKEN/tasks.task.add.json",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  fields: {\n    TITLE:\n      'ТЕСТ | Договор №' + ($json.contract_number || '') +\n      ' — ' + ($json.requisites?.company_name || ''),\n\n    DESCRIPTION:\n      'ТЕСТ\\n\\n' +\n\n      '📄 ДАННЫЕ ДОГОВОРА\\n' +\n      '────────────────────\\n' +\n      'Номер договора: ' + ($json.contract_number || '—') +\n      '\\nДата договора: ' + ($json.contract_date || '—') +\n      '\\nТип договора: ' + (\n        $json.contract_type === '01'\n          ? 'Договор покупателя'\n          : $json.contract_type === '02'\n            ? 'Договор поставщика'\n            : '—'\n      ) +\n      '\\nСумма: ' + ($json.amount || '—') + ' руб.' +\n      '\\nСрок действия: ' + ($json.contract_end_date || '—') +\n\n      '\\n\\n🏢 РЕКВИЗИТЫ КЛИЕНТА\\n' +\n      '────────────────────\\n' +\n      '\\nНаименование: ' + ($json.requisites?.company_name || '—') +\n      '\\nУНП: ' + ($json.requisites?.unp || '—') +\n      '\\nОКПО: ' + ($json.requisites?.okpo || '—') +\n      '\\nЮридический адрес: ' + ($json.requisites?.legal_address || '—') +\n      '\\nРуководитель: ' + ($json.requisites?.director_full_name || '—') +\n      '\\nОснование: ' + ($json.requisites?.basis || '—') +\n      '\\nТелефон: ' + ($json.requisites?.phone || '—') +\n      '\\nE-mail: ' + ($json.requisites?.email || '—') +\n\n      '\\n\\n🏦 БАНКОВСКИЕ РЕКВИЗИТЫ\\n' +\n      '────────────────────\\n' +\n      '\\nБанк: ' + ($json.requisites?.bank_name || '—') +\n      '\\nРасчётный счёт: ' + ($json.requisites?.bank_account || '—') +\n      '\\nБИК: ' + ($json.requisites?.bank_code || '—') +\n      '\\nАдрес банка: ' + ($json.requisites?.bank_address || '—') +\n\n      '\\n\\n🚚 УСЛОВИЯ ДОГОВОРА\\n' +\n      '────────────────────\\n' +\n      '\\nОплата: ' + ($json.payment_terms || '—') +\n      '\\nСрок поставки: ' + ($json.delivery_term || '—') +\n      '\\nУсловия доставки: ' + ($json.delivery_conditions || '—') +\n      '\\nПени: ' + ($json.penalty_rate || '—') +\n\n      '\\n\\n📎 ДОКУМЕНТ\\n' +\n      '────────────────────\\n' +\n      '\\nНазвание: ' + ($json.copy_name || '—'),\n\n    CREATED_BY: String($json.bitrix_creator_id || '1'),\n\n    RESPONSIBLE_ID: String($json.bitrix_assignee_id || '1'),\n\n    DEADLINE:\n      $now.setZone('Europe/Moscow').toFormat('yyyy-MM-dd') +\n      'T18:00:00+03:00'\n  }\n}) }}",
+        "options": {}
+      },
+      "id": "6c523036-1c36-4499-a5ec-4f902d83481b",
+      "name": "Создать задачу в Битриксе",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1472,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let original = {};\n\ntry {\n  original = $('When Executed by Another Workflow').first().json || {};\n} catch (e) {\n  original = {};\n}\n\nconst sheetResult = $input.first().json || {};\n\nconst data = {\n  ...original,\n  google_sheet_result: sheetResult\n};\n\nif (!data.bitrix_assignee_id) {\n  throw new Error('Нет bitrix_assignee_id. Данные из 01 не дошли в 03.');\n}\n\nreturn [{ json: data }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1232,
+        176
+      ],
+      "id": "5512085e-2fee-4702-8eef-3342e86140e8",
+      "name": "Восстановить данные для Битрикс"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Записать в Google Таблицу",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Записать в Google Таблицу": {
+      "main": [
+        [
+          {
+            "node": "Восстановить данные для Битрикс",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Восстановить данные для Битрикс": {
+      "main": [
+        [
+          {
+            "node": "Создать задачу в Битриксе",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  }
+}
